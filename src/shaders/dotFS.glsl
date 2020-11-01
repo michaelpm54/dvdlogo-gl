@@ -2,7 +2,9 @@
 
 out vec4 colour;
 
+uniform sampler2D tex;
+
 void main()
 {
-	colour = vec4(0, 1, 0, 1);
+    colour = texture(tex, gl_PointCoord);
 }
