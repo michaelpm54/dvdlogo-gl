@@ -46,13 +46,11 @@ struct Object {
     void moveDir(glm::vec3 vec)
     {
         pos += vec * kMoveSpeed;
-        updateTransform();
     }
 
     void setPosition(glm::vec3 vec)
     {
         pos = vec;
-        updateTransform();
     }
 
     void setVector(glm::vec3 vec)
@@ -66,9 +64,8 @@ public:
     App(const std::string &windowTitle, int windowWidth, int windowHeight);
     ~App();
 
-    void create(const std::string &windowTitle, int windowWidth, int windowHeight);
+    void createWindow(const std::string &windowTitle, int windowWidth, int windowHeight);
     void cleanup();
-    void cleanupResources();
 
     void events();
     void update();
@@ -76,8 +73,6 @@ public:
     void run();
 
     void init();
-    void initGLState();
-    void initResources();
 
     void keyDown(SDL_Keycode key);
 
@@ -102,7 +97,9 @@ private:
 
 App::App(const std::string &windowTitle, int windowWidth, int windowHeight)
 {
-    create(windowTitle, windowWidth, windowHeight);
+    createWindow(windowTitle, windowWidth, windowHeight);
+    init();
+    run();
 }
 
 App::~App()
@@ -115,21 +112,17 @@ void App::cleanup()
     if (!mContext)
         return;
 
-    cleanupResources();
+    glDeleteProgram(mProgram);
+    glDeleteBuffers(1, &mLogo.vbo);
+    glDeleteVertexArrays(1, &mLogo.vao);
+    glDeleteTextures(1, &mLogo.texture);
+
     SDL_GL_DeleteContext(mContext);
     SDL_DestroyWindow(mWindow);
     SDL_Quit();
 }
 
-void App::cleanupResources()
-{
-    glDeleteProgram(mProgram);
-    glDeleteBuffers(1, &mLogo.vbo);
-    glDeleteVertexArrays(1, &mLogo.vao);
-    glDeleteTextures(1, &mLogo.texture);
-}
-
-void App::create(const std::string &windowTitle, int windowWidth, int windowHeight)
+void App::createWindow(const std::string &windowTitle, int windowWidth, int windowHeight)
 {
     cleanup();
 
@@ -147,38 +140,26 @@ void App::create(const std::string &windowTitle, int windowWidth, int windowHeig
     }
 }
 
-void App::initGLState()
+void App::init()
 {
     glClearColor(0.3f, 0.1f, 0.1f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-}
-
-void App::recalculateCamera()
-{
-    mView = glm::lookAt(mCameraEye, mCameraEye + mCameraTarget, glm::vec3(0.0f, 1.0f, 0.0f));
-}
-
-void App::init()
-{
-    initGLState();
-    initResources();
 
     mKeys = SDL_GetKeyboardState(nullptr);
 
     /* VIEW */
     mCameraEye = glm::vec3(0.0f, 0.0f, 3.0f);
     mCameraTarget = glm::vec3(0.0f, 0.0f, -1.0f);
-    recalculateCamera();
-
+    mView = glm::lookAt(mCameraEye, mCameraEye + mCameraTarget, glm::vec3(0.0f, 1.0f, 0.0f));
     mProjection = glm::ortho(0.0f, static_cast<float>(kWindowWidth), static_cast<float>(kWindowHeight), 0.0f, 0.1f, 500.0f);
 
     /* SHADERS */
     mProgram = glCreateProgram();
 
-    GLuint vertexShader = loadShader("shaders/dotVS.glsl", GL_VERTEX_SHADER);
-    GLuint fragmentShader = loadShader("shaders/dotFS.glsl", GL_FRAGMENT_SHADER);
+    GLuint vertexShader = loadShader("vert.glsl", GL_VERTEX_SHADER);
+    GLuint fragmentShader = loadShader("frag.glsl", GL_FRAGMENT_SHADER);
 
     glAttachShader(mProgram, vertexShader);
     glAttachShader(mProgram, fragmentShader);
@@ -187,6 +168,8 @@ void App::init()
     glDeleteShader(fragmentShader);
 
     /* OBJECT & GEOMETRY */
+    mLogo.texture = loadTexture("logo.png", mLogo.width, mLogo.height);
+    glPointSize(static_cast<float>(std::max(mLogo.width, mLogo.height)));
     std::vector<GLfloat> vertices = {0.0f, 0.0f};
     glCreateBuffers(1, &mLogo.vbo);
     glNamedBufferStorage(mLogo.vbo, vertices.size(), vertices.data(), 0);
@@ -202,12 +185,6 @@ void App::init()
 
     mLogo.setVector(glm::normalize(glm::vec3 {initialXVec, initialYVec, 0.0f}));
     mLogo.setPosition({400.0f, 300.0f, 0.0f});
-}
-
-void App::initResources()
-{
-    mLogo.texture = loadTexture("logo.png", mLogo.width, mLogo.height);
-    glPointSize(static_cast<float>(std::max(mLogo.width, mLogo.height)));
 }
 
 void App::keyDown(SDL_Keycode key)
@@ -245,6 +222,11 @@ void App::events()
         mLogo.moveDir({0.0f, -1.0f, 0.0f});
     if (mKeys[SDL_SCANCODE_DOWN])
         mLogo.moveDir({0.0f, 1.0f, 0.0f});
+
+    mLogo.pos.x = std::max(0.0f, std::min(mLogo.pos.x, static_cast<float>(kWindowWidth - mLogo.width / 2)));
+    mLogo.pos.y = std::max(0.0f, std::min(mLogo.pos.y, static_cast<float>(kWindowHeight - mLogo.height / 2)));
+
+    mLogo.updateTransform();
 }
 
 void App::update()
@@ -291,8 +273,6 @@ int main()
     srand(static_cast<unsigned int>(time(nullptr)));
 
     App app("DVD", kWindowWidth, kWindowHeight);
-    app.init();
-    app.run();
 
     return 0;
 }

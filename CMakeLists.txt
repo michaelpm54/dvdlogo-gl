@@ -25,3 +25,7 @@ target_include_directories(dvd
 )
 
 target_link_libraries(dvd glm SDL2)
+
+add_custom_target(copy-runtime-files ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:dvd>
+    DEPENDS dvd)
