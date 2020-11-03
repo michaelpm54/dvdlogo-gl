@@ -1,11 +1,17 @@
-#include <glad/glad.h>
+#include "app_gl.h"
 
 #include <ctime>
 #include <string>
+#include <stdexcept>
+#include <iostream>
 #include <vector>
 
 #define SDL_MAIN_HANDLED
+#ifdef __linux__
+#include <SDL2/SDL.h>
+#else
 #include <SDL.h>
+#endif
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -82,6 +88,7 @@ private:
     SDL_Window *mWindow {nullptr};
     SDL_GLContext mContext {nullptr};
     bool mShouldClose {false};
+    bool mDoneInit{false};
 
     const Uint8 *mKeys {nullptr};
 
@@ -109,34 +116,48 @@ App::~App()
 
 void App::cleanup()
 {
-    if (!mContext)
-        return;
+    if (mContext)
+    {
+        SDL_GL_DeleteContext(mContext);
+        glDeleteProgram(mProgram);
+        glDeleteBuffers(1, &mLogo.vbo);
+        glDeleteVertexArrays(1, &mLogo.vao);
+        glDeleteTextures(1, &mLogo.texture);
+    }
 
-    glDeleteProgram(mProgram);
-    glDeleteBuffers(1, &mLogo.vbo);
-    glDeleteVertexArrays(1, &mLogo.vao);
-    glDeleteTextures(1, &mLogo.texture);
-
-    SDL_GL_DeleteContext(mContext);
-    SDL_DestroyWindow(mWindow);
-    SDL_Quit();
+    if (mDoneInit)
+    {
+        if (mWindow)
+            SDL_DestroyWindow(mWindow);
+        SDL_Quit();
+    }
 }
 
 void App::createWindow(const std::string &windowTitle, int windowWidth, int windowHeight)
 {
     cleanup();
 
+    SDL_Init(SDL_INIT_VIDEO);
+    mDoneInit = true;
+
     mWindow = SDL_CreateWindow(windowTitle.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, SDL_WINDOW_OPENGL);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
     mContext = SDL_GL_CreateContext(mWindow);
 
-    SDL_GL_SetSwapInterval(1);
+    if (!mContext) {
+        throw std::runtime_error(std::string("Failed to make SDL GL context: ") + SDL_GetError());
+    }
 
-    if (!gladLoadGL()) {
-        printf("Failed to load GL\n");
-        mShouldClose = true;
+    SDL_GL_SetSwapInterval(1);
+    SDL_GL_MakeCurrent(mWindow, mContext);
+
+    glewExperimental = true;
+    int err = glewInit();
+    if (err != GLEW_OK) {
+        throw std::runtime_error(std::string("Failed to load GL: ") + reinterpret_cast<const char*>(glewGetErrorString(err)));
     }
 }
 
@@ -272,7 +293,12 @@ int main()
 {
     srand(static_cast<unsigned int>(time(nullptr)));
 
-    App app("DVD", kWindowWidth, kWindowHeight);
+    try {
+        App app("DVD", kWindowWidth, kWindowHeight);
+    } catch (const std::runtime_error &e) {
+        std::cerr << e.what() << std::endl;
+        return 1;
+    }
 
     return 0;
 }

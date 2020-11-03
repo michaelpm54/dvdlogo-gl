@@ -1,7 +1,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include <glad/glad.h>
+#include "app_gl.h"
 
 #include <string>
 
